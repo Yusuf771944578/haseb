@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
-import { Mail, Lock, User, ArrowRight, LogIn, AlertCircle } from 'lucide-react'
+import { User, ArrowRight, LogIn, AlertCircle } from 'lucide-react'
 
 export default function LoginPage({ onAuthenticated, onToast }) {
   const { signUp, signIn, resetPassword, loading } = useAuth()
@@ -134,7 +134,7 @@ export default function LoginPage({ onAuthenticated, onToast }) {
             </>
           ) : (
             <>
-              '<|reserved_special_token_0|>' {' '}
+              <span className="text-slate-500">يمكنك العودة للتسجيل</span> {' '}
               <button onClick={() => { setMode('login'); setError('') }} className="text-emerald-600 font-semibold underline underline-offset-4">
                                             العودة للتسجيل
               </button>

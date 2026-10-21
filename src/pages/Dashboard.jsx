@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import {
   CheckCircle,
   X,
+  User,
   Flag,
   Calendar,
   Moon,
@@ -215,7 +216,7 @@ export default function Dashboard({ user, onViewReport, onToast, onNavigateRepor
     })
 
     lines.push('')
-    lines.push('✨ الحمد لله الذي بنعمته تتم الصلحت')
+    lines.push('✨ الحمد لله الذي بنعمته تتم الصلح')
 
     setReportText(lines.join('\n'))
     setShowReport(true)

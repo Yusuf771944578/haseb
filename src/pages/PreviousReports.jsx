@@ -139,7 +139,7 @@ export default function PreviousReports({ user, onViewReport, onToast }) {
           <div className="bg-slate-50 rounded-lg border border-slate-100 p-4">
             <h4 className="text-sm font-semibold text-slate-700 mb-3">تفاصيل الأعمال:</h4>
             <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
-              {([...tasks].sort((a, b) => a.sort_order - b.sort_order) as any[]).map((t) => {
+              {([...tasks].sort((a, b) => a.sort_order - b.sort_order)).map((t) => {
                 const it = itemsByReport[selectedReport.id]?.find((x) => x.task_id === t.id)
                 const done = it ? it.is_completed : false
                 return (
@@ -212,7 +212,7 @@ export default function PreviousReports({ user, onViewReport, onToast }) {
       )}
 
       <div className="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-100 text-sm text-slate-600">
-        <p className="font-medium">ملاحظة 중요:</p>
+        <p className="font-medium">ملاحظة مهمة:</p>
         <ul className="list-disc list-inside mt-2 space-y-1">
           <li>هذه الصفحة تُظهر تقارير حسابك فقط ولا تُظهر تقارير أي مستخدم آخر.</p>
           <li>كل تقرير محفوظ بتاريخه بشكل مستقل؛ تعديل أعمال اليوم لا يغيّر تقارير الأيام السابقة.</li>

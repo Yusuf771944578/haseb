@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { ArrowLeft, Copy, Share2, Flag, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Copy, Share2, Flag, RefreshCw, Check } from 'lucide-react'
 
 export default function ReportView({ reportId, user, onBack, onToast }) {
   const [report, setReport] = useState(null)
@@ -59,7 +59,7 @@ export default function ReportView({ reportId, user, onBack, onToast }) {
     })
 
     lines.push('')
-    lines.push('✨ الحمد لله الذي بنعمته تتم الصلحت')
+    lines.push('✨ الحمد لله الذي بنعمته تتم الصالحات')
 
     setReportText(lines.join('\n'))
   }
@@ -69,9 +69,9 @@ export default function ReportView({ reportId, user, onBack, onToast }) {
       await navigator.clipboard.writeText(reportText)
       setCopyConfirmation(true)
       setTimeout(() => setCopyConfirmation(false), 2000)
-      onToast('success', 'تم نسخ التقرير إلى الحافظة')
+      if (onToast) onToast('success', 'تم نسخ التقرير إلى الحافظة')
     } catch (err) {
-      onToast('error', 'فشل النسخ')
+      if (onToast) onToast('error', 'فشل النسخ')
     }
   }
 
@@ -127,11 +127,14 @@ export default function ReportView({ reportId, user, onBack, onToast }) {
             className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 py-2.5 rounded-lg font-medium disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {copyConfirmation ? (
-              <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-              تم النسخ
+              <>
+                <Check className="w-4 h-4 text-emerald-600" />
+                <span>تم النسخ</span>
+              </>
             ) : (
               <>
-                <Copy className="w-4 h-4 mr-1" /> نسخ التقرير
+                <Copy className="w-4 h-4 mr-1" />
+                <span>نسخ التقرير</span>
               </>
             )}
           </button>
