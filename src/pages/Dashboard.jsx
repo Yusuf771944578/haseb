@@ -395,9 +395,12 @@ export default function Dashboard({ user, onViewReport, onToast, onNavigateRepor
                 disabled={copyConfirmation}
                 className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 py-2.5 rounded-lg font-medium disabled:opacity-60 flex items-center justify-center gap-2"
               >
-                {copyConfirmation ? (
-                  <CheckCircle className="w-4 h-4 text-emerald-600" /> تم النسخ
-                ) : (
+              {copyConfirmation ? (
+  <>
+    <CheckCircle className="w-4 h-4 text-emerald-600" />
+    <span>تم النسخ</span>
+  </>
+) : (
                   <>
                     <Copy className="w-4 h-4" /> نسخ التقرير
                   </>

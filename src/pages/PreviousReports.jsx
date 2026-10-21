@@ -214,7 +214,7 @@ export default function PreviousReports({ user, onViewReport, onToast }) {
       <div className="mt-6 p-4 bg-slate-50 rounded-lg border border-slate-100 text-sm text-slate-600">
         <p className="font-medium">ملاحظة مهمة:</p>
         <ul className="list-disc list-inside mt-2 space-y-1">
-          <li>هذه الصفحة تُظهر تقارير حسابك فقط ولا تُظهر تقارير أي مستخدم آخر.</p>
+      <li>هذه الصفحة تُظهر تقارير حسابك فقط ولا تُظهر تقارير أي مستخدم آخر.</li>
           <li>كل تقرير محفوظ بتاريخه بشكل مستقل؛ تعديل أعمال اليوم لا يغيّر تقارير الأيام السابقة.</li>
         </ul>
       </div>
