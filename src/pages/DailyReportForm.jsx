@@ -49,7 +49,7 @@ export default function DailyReportForm({ user, onBack, onSaved, onToast }) {
 
   const getHijriDate = (dateString) => {
     try {
-      return new Intl.DateTimeFormat('ar-SA-u-ca-islamic', {
+      return new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura', {
         day: 'numeric', month: 'long', year: 'numeric'
       }).format(new Date(`${dateString}T12:00:00`))
     } catch {
