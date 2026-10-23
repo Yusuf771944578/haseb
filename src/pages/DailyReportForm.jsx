@@ -8,11 +8,54 @@ export default function DailyReportForm({ user, onBack, onSaved, onToast }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0])
-  const [notes, setNotes] = useState('')
 
   useEffect(() => {
     loadTasks()
   }, [])
+
+  // تحميل حالة تقرير اليوم نفسه إن كان محفوظاً سابقاً (لتعديله بدل إنشاء تقرير مكرر)
+  useEffect(() => {
+    if (tasks.length === 0) return
+    let cancelled = false
+
+    const loadSavedStatus = async () => {
+      const { data: report } = await supabase
+        .from('daily_reports')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('report_date', reportDate)
+        .maybeSingle()
+
+      if (!report) {
+        if (!cancelled) setTaskStatus({})
+        return
+      }
+
+      const { data: items } = await supabase
+        .from('daily_report_items')
+        .select('task_id, is_completed')
+        .eq('report_id', report.id)
+
+      if (!cancelled) {
+        const map = {}
+        ;(items || []).forEach(it => { if (it.task_id) map[it.task_id] = it.is_completed })
+        setTaskStatus(map)
+      }
+    }
+
+    loadSavedStatus()
+    return () => { cancelled = true }
+  }, [reportDate, tasks.length, user.id])
+
+  const getHijriDate = (dateString) => {
+    try {
+      return new Intl.DateTimeFormat('ar-SA-u-ca-islamic', {
+        day: 'numeric', month: 'long', year: 'numeric'
+      }).format(new Date(`${dateString}T12:00:00`))
+    } catch {
+      return null
+    }
+  }
 
   const loadTasks = async () => {
     try {
@@ -48,24 +91,59 @@ export default function DailyReportForm({ user, onBack, onSaved, onToast }) {
     setSaving(true)
 
     try {
-      const { data: reportData, error: reportError } = await supabase
+      // التحقق أولاً إن كان هناك تقرير محفوظ لنفس اليوم (قيد: تقرير واحد لكل مستخدم لكل تاريخ)
+      const { data: existingReport, error: findError } = await supabase
         .from('daily_reports')
-        .insert([
-          {
-            user_id: user.id,
-            report_date: reportDate,
-            gregorian_date: reportDate,
-            notes: notes
-          }
-        ])
-        .select()
-        .single()
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('report_date', reportDate)
+        .maybeSingle()
 
-      if (reportError) throw reportError
+      if (findError) throw findError
 
+      let reportId = existingReport?.id
+
+      if (reportId) {
+        // تحديث التقرير الموجود وحذف بنوده القديمة قبل إعادة إدخالها
+        const { error: updateError } = await supabase
+          .from('daily_reports')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', reportId)
+          .eq('user_id', user.id)
+
+        if (updateError) throw updateError
+
+        const { error: deleteError } = await supabase
+          .from('daily_report_items')
+          .delete()
+          .eq('report_id', reportId)
+          .eq('user_id', user.id)
+
+        if (deleteError) throw deleteError
+      } else {
+        const { data: reportData, error: reportError } = await supabase
+          .from('daily_reports')
+          .insert([
+            {
+              user_id: user.id,
+              report_date: reportDate,
+              gregorian_date: reportDate,
+              hijri_date: getHijriDate(reportDate)
+            }
+          ])
+          .select()
+          .single()
+
+        if (reportError) throw reportError
+        reportId = reportData.id
+      }
+
+      // إدخال بنود التقرير مع الحقول الإلزامية (user_id و task_title) المطلوبة في المخطط
       const reportItems = tasks.map(t => ({
-        report_id: reportData.id,
+        report_id: reportId,
+        user_id: user.id,
         task_id: t.id,
+        task_title: t.title,
         is_completed: !!taskStatus[t.id]
       }))
 
@@ -76,10 +154,10 @@ export default function DailyReportForm({ user, onBack, onSaved, onToast }) {
       if (itemsError) throw itemsError
 
       if (onToast) onToast('success', 'تم حفظ التقرير اليومي بنجاح!')
-      if (onSaved) onSaved(reportData.id)
+      if (onSaved) onSaved(reportId)
     } catch (err) {
       console.error(err)
-      if (onToast) onToast('error', 'حدث خطأ أثناء حفظ التقرير')
+      if (onToast) onToast('error', `حدث خطأ أثناء حفظ التقرير: ${err.message || ''}`)
     } finally {
       setSaving(false)
     }
@@ -168,17 +246,6 @@ export default function DailyReportForm({ user, onBack, onSaved, onToast }) {
                 )
               })}
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs text-slate-400 font-medium block">ملاحظات (اختياري)</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows="3"
-              placeholder="اكتب أي ملاحظة عن يومك..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 resize-none"
-            />
           </div>
 
           <button

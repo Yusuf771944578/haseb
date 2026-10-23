@@ -68,7 +68,7 @@ create index idx_daily_report_items_report on public.daily_report_items(report_i
 create index idx_daily_report_items_user on public.daily_report_items(user_id);
 
 -- ---------------------------------------------------------------------------
--- زرع الأعمال اليومية الافتراضية (35 عملاً) gemäß المتطلبات
+-- زرع الأعمال اليومية الافتراضية (35 عملاً) وفقاً للمتطلبات
 -- ---------------------------------------------------------------------------
 insert into public.daily_tasks (title, category, sort_order) values
 -- أعمال الليل والعشاء
@@ -179,7 +179,13 @@ create policy "المستخدم يستطيع حذف تقاريره فقط"
 -- ---------------------------------------------------------------------------
 create policy "المستخدم يستطيع قراءة بنود تقاريره فقط"
   on public.daily_report_items for select
-  using ( auth.uid() = user_id );
+  using (
+    auth.uid() = user_id
+    and exists (
+      select 1 from public.daily_reports
+      where id = report_id and user_id = auth.uid()
+    )
+  );
 
 create policy "المستخدم يستطيع إضافة بنود إلى تقاريره فقط"
   on public.daily_report_items for insert

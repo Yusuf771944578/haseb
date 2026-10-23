@@ -1,137 +1,197 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { 
-  Sparkles, CheckCircle2, Flame, 
-  ArrowRight, Share2, TrendingUp, ShieldCheck, FileText, LogOut 
-} from 'lucide-react'
+import { ArrowLeft, Calendar, FileText, TrendingUp, Loader2, ChevronLeft } from 'lucide-react'
 
-export default function Dashboard({ user, onStartReport, onViewPrevious, onLogout }) {
-  const [streak, setStreak] = useState(0)
-  const [quote, setQuote] = useState('')
+const formatDate = (dateString) => {
+  if (!dateString) return ''
+  try {
+    return new Date(`${dateString}T12:00:00`).toLocaleDateString('ar-EG', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+  } catch {
+    return dateString
+  }
+}
 
-  const quotes = [
-    "«حَاسِبُوا أَنْفُسَكُمْ قَبْلَ أَنْ تُحَاسَبُوا، وَزِنُوا أَنْفُسَكُمْ قَبْلَ أَنْ تُوَزَنُوا»",
-    "«أَحَبُّ الأَعْمَالِ إِلَى اللَّهِ أَدْوَمُهَا وَإِنْ قَلَّ»",
-    "«الكَيِّسُ مَنْ دَانَ نَفْسَهُ وَعَمِلَ لِمَا بَعْدَ المَوْتِ»"
-  ]
+const getHijriDate = (dateString) => {
+  if (!dateString) return ''
+  try {
+    return new Intl.DateTimeFormat('ar-SA-u-ca-islamic', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(new Date(`${dateString}T12:00:00`))
+  } catch {
+    return ''
+  }
+}
+
+export default function PreviousReports({ user, onBack, onSelectReport }) {
+  const [reports, setReports] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    setQuote(quotes[Math.floor(Math.random() * quotes.length)])
-    if (user?.id) loadUserStreak()
-  }, [user?.id])
+    loadReports()
+  }, [user.id])
 
-  const loadUserStreak = async () => {
+  const loadReports = async () => {
     try {
-      const { data } = await supabase
-        .from('daily_reports')
-        .select('id')
-        .eq('user_id', user.id)
+      setLoading(true)
+      setError('')
 
-      if (data) setStreak(data.length)
-    } catch (e) {
-      console.error(e)
+      const { data: reportsData, error: reportsError } = await supabase
+        .from('daily_reports')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('report_date', { ascending: false })
+
+      if (reportsError) throw reportsError
+
+      const ids = (reportsData || []).map(r => r.id)
+      let items = []
+
+      if (ids.length > 0) {
+        const { data: itemsData, error: itemsError } = await supabase
+          .from('daily_report_items')
+          .select('report_id, is_completed')
+          .in('report_id', ids)
+
+        if (itemsError) throw itemsError
+        items = itemsData || []
+      }
+
+      const statsByReport = {}
+      items.forEach(it => {
+        if (!statsByReport[it.report_id]) statsByReport[it.report_id] = { total: 0, completed: 0 }
+        statsByReport[it.report_id].total += 1
+        if (it.is_completed) statsByReport[it.report_id].completed += 1
+      })
+
+      setReports((reportsData || []).map(r => {
+        const stats = statsByReport[r.id] || { total: 0, completed: 0 }
+        return {
+          ...r,
+          total: stats.total,
+          completed: stats.completed,
+          percentage: stats.total === 0 ? 0 : Math.round((stats.completed / stats.total) * 100),
+        }
+      }))
+    } catch (err) {
+      console.error(err)
+      setError('تعذر تحميل التقارير السابقة. تأكد من اتصال قاعدة البيانات.')
+    } finally {
+      setLoading(false)
     }
   }
 
+  const average = reports.length
+    ? Math.round(reports.reduce((sum, r) => sum + r.percentage, 0) / reports.length)
+    : 0
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans dir-rtl">
-      {/* الهيدر العلوي */}
-      <header className="max-w-5xl mx-auto flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-            <Sparkles className="w-6 h-6" />
-          </div>
+    <div className="space-y-6 dir-rtl">
+      <div className="flex items-center justify-between gap-3">
+        <button
+          onClick={onBack}
+          type="button"
+          className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4 rotate-180" />
+          <span>العودة للرئيسية</span>
+        </button>
+        <span className="text-xs text-slate-500">{reports.length} تقرير محفوظ</span>
+      </div>
+
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl space-y-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">
-              منصة حاسب نفسك
-            </h1>
-            <p className="text-xs text-slate-400">محطتك اليومية للتطوير والارتقاء الذاتي</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-full text-xs font-medium text-amber-400">
-            <Flame className="w-4 h-4 fill-amber-400" />
-            <span>{streak} تقارير أنجزتها</span>
-          </div>
-
-          <button
-            onClick={onLogout}
-            type="button"
-            title="تسجيل الخروج"
-            className="p-2 rounded-xl bg-slate-900 border border-slate-800 hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-400 text-slate-400 transition-all cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        </div>
-      </header>
-
-      {/* القسم الرئيسي / البنر التحفيزي */}
-      <main className="max-w-5xl mx-auto space-y-6">
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-900/40 via-slate-900 to-slate-950 border border-emerald-500/20 p-6 md:p-10 shadow-2xl">
-          <div className="relative z-10 max-w-2xl space-y-4">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <ShieldCheck className="w-3.5 h-3.5" /> أهلاً بك، {user?.user_metadata?.full_name || user?.email || 'يا بطل الإنجاز'}
-            </span>
-            <h2 className="text-2xl md:text-4xl font-extrabold text-white leading-tight">
-              اجعل يومك مقياساً لتقدمك ورسالة لنجاحك القادم
+            <h2 className="text-2xl font-bold text-white mb-1 flex items-center gap-2">
+              <FileText className="w-6 h-6 text-emerald-400" />
+              التقارير السابقة
             </h2>
-            <p className="text-slate-300 text-sm md:text-base leading-relaxed bg-slate-900/50 p-3 rounded-xl border border-slate-800/80">
-              {quote}
-            </p>
-            
-            {/* الأزرار التفاعلية */}
-            <div className="pt-2 flex flex-wrap gap-3">
-              <button 
-                type="button"
-                onClick={onStartReport}
-                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-6 py-3 rounded-xl transition-all shadow-lg shadow-emerald-500/25 flex items-center gap-2 cursor-pointer active:scale-95"
+            <p className="text-slate-400 text-sm">سجل إنجازاتك اليومية ونسبة تقدمك في كل يوم.</p>
+          </div>
+
+          {reports.length > 0 && (
+            <div className="bg-slate-950/60 border border-slate-800 rounded-2xl px-4 py-3 text-center">
+              <div className="text-[11px] text-slate-400 mb-0.5">متوسط الإنجاز</div>
+              <div className="text-xl font-bold text-emerald-400 flex items-center gap-1.5 justify-center">
+                <TrendingUp className="w-4 h-4" />
+                {average}%
+              </div>
+            </div>
+          )}
+        </div>
+
+        {loading && (
+          <div className="flex items-center justify-center py-16 text-slate-400 gap-2">
+            <Loader2 className="w-5 h-5 animate-spin text-emerald-400" />
+            <span>جاري تحميل التقارير...</span>
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-300 rounded-2xl p-4 text-sm">
+            {error}
+          </div>
+        )}
+
+        {!loading && !error && reports.length === 0 && (
+          <div className="text-center py-16 space-y-3">
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-center text-slate-500">
+              <Calendar className="w-7 h-7" />
+            </div>
+            <p className="text-slate-300 font-medium">لا توجد تقارير محفوظة بعد</p>
+            <p className="text-slate-500 text-sm">ابدأ بتعبئة تقرير اليوم وسيظهر هنا مباشرة.</p>
+          </div>
+        )}
+
+        {!loading && !error && reports.length > 0 && (
+          <div className="space-y-3">
+            {reports.map((report) => (
+              <button
+                key={report.id}
+                onClick={() => onSelectReport(report.id)}
+                className="w-full text-right bg-slate-950/40 hover:bg-slate-950/80 border border-slate-800 hover:border-emerald-500/40 rounded-2xl p-4 md:p-5 transition-all group cursor-pointer"
               >
-                <span>تعبئة تقرير اليوم</span>
-                <ArrowRight className="w-4 h-4 rotate-180" />
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                      <Calendar className="w-4 h-4 text-emerald-400 shrink-0" />
+                      {formatDate(report.report_date)}
+                    </div>
+                    <div className="text-xs text-slate-500 pr-6">
+                      {report.hijri_date ? `${report.hijri_date} هـ` : getHijriDate(report.report_date)}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <div className="w-32 md:w-44">
+                      <div className="flex justify-between text-[11px] mb-1">
+                        <span className="text-slate-400">{report.completed} من {report.total}</span>
+                        <span className={report.percentage >= 50 ? 'text-emerald-400' : 'text-amber-400'}>
+                          {report.percentage}%
+                        </span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${report.percentage >= 50 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                          style={{ width: `${report.percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                    <ChevronLeft className="w-5 h-5 text-slate-500 group-hover:text-emerald-400 transition-colors" />
+                  </div>
+                </div>
               </button>
-
-              <button 
-                type="button"
-                onClick={onViewPrevious}
-                className="bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 font-semibold px-5 py-3 rounded-xl transition-all flex items-center gap-2 cursor-pointer active:scale-95"
-              >
-                <FileText className="w-4 h-4 text-emerald-400" />
-                <span>التقارير السابقة</span>
-              </button>
-            </div>
+            ))}
           </div>
-
-          <div className="absolute -left-10 -bottom-10 w-60 h-60 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-        </section>
-
-        {/* بطاقات الميزات الإضافية */}
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl hover:border-slate-700 transition-all">
-            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-3">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-            <h3 className="font-semibold text-slate-200 text-base mb-1">محاسبة دقيقة</h3>
-            <p className="text-xs text-slate-400">تتبع أداءك العبادي واليومي بكل سهولة ووضوح عبر جداول منظمّة.</p>
-          </div>
-
-          <div className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl hover:border-slate-700 transition-all">
-            <div className="w-10 h-10 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center mb-3">
-              <TrendingUp className="w-5 h-5" />
-            </div>
-            <h3 className="font-semibold text-slate-200 text-base mb-1">تقارير إحصائية</h3>
-            <p className="text-xs text-slate-400">استعرض سجلات إنجازك والأيام السابقة لملاحظة استمراريتك.</p>
-          </div>
-
-          <div className="bg-slate-900/80 border border-slate-800 p-5 rounded-2xl hover:border-slate-700 transition-all">
-            <div className="w-10 h-10 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center mb-3">
-              <Share2 className="w-5 h-5" />
-            </div>
-            <h3 className="font-semibold text-slate-200 text-base mb-1">مشاركة فورية</h3>
-            <p className="text-xs text-slate-400">صمّم تقريرك بضغطة زر وشاركه مع معلمك أو إمام الحلقة عبر الواتساب.</p>
-          </div>
-        </section>
-      </main>
+        )}
+      </div>
     </div>
   )
 }

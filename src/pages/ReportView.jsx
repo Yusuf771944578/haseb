@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { ArrowLeft, Copy, Share2, Flag, RefreshCw, Check } from 'lucide-react'
+import {
+  ArrowLeft, Copy, Share2, RefreshCw, Check, X, CheckCircle2,
+  Calendar, TrendingUp, FileText
+} from 'lucide-react'
 
 export default function ReportView({ reportId, user, onBack, onToast }) {
   const [report, setReport] = useState(null)
@@ -24,23 +27,33 @@ export default function ReportView({ reportId, user, onBack, onToast }) {
       supabase.from('profiles').select('circle_name, full_name').eq('id', user.id).maybeSingle(),
     ])
 
-    if (rRes.data) {
-      setReport(rRes.data)
-      setItems(iRes.data || [])
-      setTasks(tRes.data || [])
-      setProfile(pRes.data || null)
-      buildText()
-    }
+    setReport(rRes.data || null)
+    setItems(iRes.data || [])
+    setTasks(tRes.data || [])
+    setProfile(pRes.data || null)
     setLoading(false)
   }
 
-  const buildText = () => {
-    if (!report) return
-    const itemMap = {}
-    items.forEach((it) => { itemMap[it.task_id] = it })
-    const completed = items.filter((i) => i.is_completed).length
-    const total = tasks.length
+  // بناء نص التقرير تلقائياً بعد تحميل البيانات (وليس من حالة قديمة قبل التحديث)
+  useEffect(() => {
+    if (!report) {
+      setReportText('')
+      return
+    }
+
+    const completed = items.filter(i => i.is_completed).length
+    const total = items.length
     const pct = total === 0 ? 0 : Math.round((completed / total) * 1000) / 10
+
+    const orderMap = {}
+    tasks.forEach(t => { orderMap[t.id] = t.sort_order ?? 999 })
+
+    const ordered = [...items].sort((a, b) => {
+      const ao = orderMap[a.task_id] ?? 999
+      const bo = orderMap[b.task_id] ?? 999
+      if (ao !== bo) return ao - bo
+      return (a.task_title || '').localeCompare(b.task_title || '', 'ar')
+    })
 
     const lines = []
     lines.push('📊 [تقرير إنجاز طالب - حاسب نفسك]')
@@ -51,18 +64,15 @@ export default function ReportView({ reportId, user, onBack, onToast }) {
     lines.push(`📈 نتيجة الإنجاز: ${completed} من ${total} (${pct}%)`)
     lines.push('📋 تفاصيل الأعمال اليومية:')
 
-    const ordered = [...tasks].sort((a, b) => a.sort_order - b.sort_order)
-    ordered.forEach((t) => {
-      const it = itemMap[t.id]
-      const done = it ? it.is_completed : false
-      lines.push(`${done ? '✅' : '❌'} ${t.title}`)
+    ordered.forEach(it => {
+      lines.push(`${it.is_completed ? '✅' : '❌'} ${it.task_title || 'عمل'}`)
     })
 
     lines.push('')
     lines.push('✨ الحمد لله الذي بنعمته تتم الصالحات')
 
     setReportText(lines.join('\n'))
-  }
+  }, [report, items, tasks, profile, user])
 
   const handleCopy = async () => {
     try {
@@ -70,8 +80,8 @@ export default function ReportView({ reportId, user, onBack, onToast }) {
       setCopyConfirmation(true)
       setTimeout(() => setCopyConfirmation(false), 2000)
       if (onToast) onToast('success', 'تم نسخ التقرير إلى الحافظة')
-    } catch (err) {
-      if (onToast) onToast('error', 'فشل النسخ')
+    } catch {
+      if (onToast) onToast('error', 'فشل النسخ إلى الحافظة')
     }
   }
 
@@ -81,84 +91,154 @@ export default function ReportView({ reportId, user, onBack, onToast }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <p className="text-slate-600">جاري تحميل التقرير...</p>
+      <div className="flex justify-center items-center py-24 text-slate-400">
+        <p className="animate-pulse">جاري تحميل التقرير...</p>
       </div>
     )
   }
 
   if (!report) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
-          <p className="text-red-600 font-medium mb-3">التقرير غير موجود أو لا تملك صلاحية عرضه.</p>
-          <button onClick={onBack} className="btn-outline">العودة إلى التقارير السابقة</button>
+      <div className="flex justify-center items-center py-24">
+        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center max-w-md">
+          <p className="text-red-400 font-medium mb-4">التقرير غير موجود أو لا تملك صلاحية عرضه.</p>
+          <button
+            onClick={onBack}
+            className="bg-slate-950 hover:bg-slate-800 border border-slate-700 text-slate-200 px-5 py-2.5 rounded-xl text-sm transition-all cursor-pointer"
+          >
+            العودة إلى التقارير السابقة
+          </button>
         </div>
       </div>
     )
   }
 
+  const displayItems = items.length > 0
+    ? items
+    : tasks.map(t => ({ id: t.id, task_title: t.title, is_completed: false }))
+
+  const completedCount = displayItems.filter(i => i.is_completed).length
+  const totalCount = displayItems.length
+  const percentage = totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 1000) / 10
+
   return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <button onClick={onBack} className="btn-outline text-sm">
-          <ArrowLeft className="w-4 h-4 mr-1" /> العودة إلى التقارير السابقة
+    <div className="space-y-6 dir-rtl">
+      <div className="flex items-center justify-between gap-3">
+        <button
+          onClick={onBack}
+          type="button"
+          className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4 rotate-180" />
+          <span>العودة إلى التقارير السابقة</span>
         </button>
-        <span className="text-sm text-slate-500">| تقرير يوم {report.report_date}</span>
+        <span className="text-xs text-slate-500 font-mono">{report.report_date}</span>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
-        <h2 className="text-lg font-bold text-slate-900 mb-1">تقرير الإنجاز اليومي</h2>
-        <p className="text-sm text-slate-600 mb-4">
-          {report.gregorian_date ? `التاريخ الميلادي: ${report.gregorian_date}` : ''}
-          {report.hijri_date ? ` | الهجري: ${report.hijri_date}` : ''}
-        </p>
-        <div className="text-2xl font-bold text-emerald-700 mb-1">
-          {items.filter((i) => i.is_completed).length} من {tasks.length} — {
-          tasks.length === 0 ? '0%' : Math.round((items.filter((i) => i.is_completed).length / tasks.length) * 1000) / 10
-        }%
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-white mb-1 flex items-center gap-2">
+            <FileText className="w-6 h-6 text-emerald-400" />
+            تقرير الإنجاز اليومي
+          </h2>
+          <p className="text-slate-400 text-sm flex items-center gap-2 flex-wrap">
+            <Calendar className="w-4 h-4 text-emerald-400" />
+            <span>{report.gregorian_date || report.report_date}</span>
+            {report.hijri_date && <span className="text-slate-500">| {report.hijri_date} هـ</span>}
+          </p>
         </div>
-        <p className="text-sm text-slate-500 mb-4">نسبة الإنجاز لهذا اليوم</p>
 
-        <div className="flex gap-2 sm:gap-3 mb-6">
+        <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-5">
+          <div className="flex items-end justify-between gap-4 mb-3">
+            <div>
+              <div className="text-xs text-slate-400 mb-1">نسبة الإنجاز لهذا اليوم</div>
+              <div className="text-3xl font-bold text-emerald-400">
+                {completedCount} <span className="text-lg text-slate-500">من {totalCount}</span>
+                <span className="text-lg text-slate-300 mr-2">({percentage}%)</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-3 py-1">
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>إنجاز</span>
+            </div>
+          </div>
+          <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden">
+            <div
+              className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3">
           <button
             onClick={handleCopy}
             disabled={copyConfirmation}
-            className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-800 py-2.5 rounded-lg font-medium disabled:opacity-60 flex items-center justify-center gap-2"
+            className="flex-1 bg-slate-950 hover:bg-slate-800 border border-slate-700 text-slate-200 py-3 rounded-xl font-medium disabled:opacity-60 flex items-center justify-center gap-2 transition-all cursor-pointer"
           >
             {copyConfirmation ? (
               <>
-                <Check className="w-4 h-4 text-emerald-600" />
+                <Check className="w-4 h-4 text-emerald-400" />
                 <span>تم النسخ</span>
               </>
             ) : (
               <>
-                <Copy className="w-4 h-4 mr-1" />
+                <Copy className="w-4 h-4" />
                 <span>نسخ التقرير</span>
               </>
             )}
           </button>
           <button
             onClick={handleWhatsApp}
-            className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-lg font-medium flex items-center justify-center gap-2"
+            className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-500/20 cursor-pointer"
           >
-            <Share2 className="w-4 h-4 mr-1" /> مشاركة عبر واتساب
+            <Share2 className="w-4 h-4" />
+            <span>مشاركة عبر واتساب</span>
           </button>
         </div>
 
-        <div className="bg-slate-50 rounded-lg border border-slate-100 p-4">
-          <h4 className="text-sm font-semibold text-slate-700 mb-3">نص التقرير المنسوخ (جاهز للواتساب):</h4>
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            تفاصيل الأعمال اليومية
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {displayItems.map((item) => (
+              <div
+                key={item.id}
+                className={`flex items-center gap-2.5 p-3 rounded-xl border text-sm ${
+                  item.is_completed
+                    ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200'
+                    : 'bg-slate-950/40 border-slate-800 text-slate-400'
+                }`}
+              >
+                {item.is_completed ? (
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                ) : (
+                  <X className="w-4 h-4 text-slate-600 shrink-0" />
+                )}
+                <span className="leading-relaxed">{item.task_title || 'عمل'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h3 className="text-sm font-semibold text-slate-300">نص التقرير الجاهز للمشاركة</h3>
+            <button
+              onClick={loadReport}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              تحديث من قاعدة البيانات
+            </button>
+          </div>
           <textarea
             readOnly
             value={reportText}
-            className="w-full h-64 mb-3 rounded-lg border border-slate-200 bg-white p-3 font-mono text-sm text-slate-700 focus:outline-none resize-none"
+            className="w-full h-64 rounded-2xl border border-slate-800 bg-slate-950 p-4 font-mono text-sm leading-relaxed text-slate-300 focus:outline-none resize-none"
           />
-          <div className="flex gap-2">
-            <button onClick={handleCopy} className="flex-1 btn-outline text-sm">إعادة نسخ النص</button>
-            <button onClick={buildText} className="flex-1 btn-outline text-sm">
-              <RefreshCw className="w-4 h-4 mr-1" /> تحديث التقرير من قاعدة البيانات
-            </button>
-          </div>
         </div>
       </div>
     </div>
