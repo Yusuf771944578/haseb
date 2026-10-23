@@ -5,10 +5,12 @@ import Dashboard from './pages/Dashboard'
 import DailyReportForm from './pages/DailyReportForm'
 import PreviousReports from './pages/PreviousReports'
 import ReportView from './pages/ReportView'
+import ResetPassword from './pages/ResetPassword'
 
 export default function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [recoveryMode, setRecoveryMode] = useState(false)
   const [currentView, setCurrentView] = useState('dashboard') // 'dashboard' | 'form' | 'previous' | 'view'
   const [selectedReportId, setSelectedReportId] = useState(null)
   const [toast, setToast] = useState(null)
@@ -19,7 +21,8 @@ export default function App() {
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') setRecoveryMode(true)
       setSession(session)
       setLoading(false)
     })
@@ -47,6 +50,15 @@ export default function App() {
 
   if (!session) {
     return <LoginPage onToast={showToast} />
+  }
+
+  if (recoveryMode) {
+    return (
+      <ResetPassword
+        onDone={() => setRecoveryMode(false)}
+        onToast={showToast}
+      />
+    )
   }
 
   return (

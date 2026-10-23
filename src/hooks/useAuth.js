@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
+// يعيد رابط الموقع الحالي مع المسار الصحيح (يدعم /haseb/ على GitHub Pages)
+const getRedirectUrl = () => {
+  const base = import.meta.env.BASE_URL || '/'
+  return `${window.location.origin}${base}`
+}
+
 export function useAuth() {
   const [user, setUser] = useState(null)
   const [session, setSession] = useState(null)
@@ -31,6 +37,7 @@ export function useAuth() {
       password,
       options: {
         data: { full_name: fullName },
+        emailRedirectTo: getRedirectUrl(),
       },
     })
     return { data, error }
@@ -48,7 +55,7 @@ export function useAuth() {
 
   const resetPassword = useCallback(async (email) => {
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/`,
+      redirectTo: getRedirectUrl(),
     })
     return { data, error }
   }, [])
